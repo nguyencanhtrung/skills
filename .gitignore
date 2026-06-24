@@ -1,0 +1,11 @@
+# Whitelist approach: ignore everything in ~/.claude, then un-ignore only what we publish.
+# This keeps history/sessions/cache/settings out of the public repo by default.
+/*
+!.gitignore
+!README.md
+!skills/
+
+# Inside skills/, publish files but never the real (local) config.
+skills/*/review-config.json
+
+# ponytail: whitelist over blacklist so a new private dir can't leak by being forgotten.

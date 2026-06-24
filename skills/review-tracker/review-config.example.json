@@ -1,0 +1,5 @@
+{
+  "your-project":    { "host": "gitlab", "project_id": 0000, "tracker": "gitlab/sum-your-project.md", "features": "code/your-project-features.md" },
+  "another-project": { "host": "gitlab", "project_id": 0000, "tracker": "gitlab/sum-another.md",      "features": null },
+  "a-github-repo":   { "host": "github", "project_id": 0000, "tracker": "docs/review-tracker.md",     "features": null }
+}

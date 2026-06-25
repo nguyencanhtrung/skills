@@ -45,6 +45,7 @@ Remote-first (this step needs MCP):
 2. **Refresh capture** -> `gitlab/<project>/mr-<n>.md` or `issue-<n>.md` per the GitLab Query Capture Protocol (CLAUDE.md). If remote already shows `merged`/`closed` (contradicting "about to review") -> surface it before proceeding.
 3. **Find-or-create review-notes** (see globbing rule above). On create, fill the `## Round 1` Scope from the capture (factual), leave Findings/T1/Outcome as placeholders, and seed the R1 row in the Rounds-summary table (🟡 in-review) — results land at `/rv-round-end`.
 4. **Tracker:** mark the row in-review. The reviewer is the **review owner** (current git user), not the MR author/assignee. If the tracker has no in-review state value (only `opened/merged/closed`), encode it in the row's Notes cell (e.g. `review started <date> (<owner>), R1 in-review`); leave round results blank there.
+5. **Auto deep-review (project `dronava` only).** After steps 1-4 finish and the review-notes framework exists, immediately invoke the `review-3gpp` skill (its `/rv-3gpp` flow) for the same `<project> <#n|!n>`, to fill the Round-N findings. **Only for `<project> == dronava`** — for any other project, stop after step 4; do not run `/rv-3gpp`.
 
 ### `/rv-round-end <project> <#n|!n>`
 
@@ -61,49 +62,9 @@ From the conversation. Fixed write order:
 
 ### `/rv-refactor <project>`
 
-Batch-fix all notes files for `<project>` in `code/track/` that have a wrong name or non-conforming content. Files that are already correct are silently skipped.
-
-**Step 1 — Discover files.**
-Glob `code/track/` for files that belong to this project:
-- name starts with `<project>-` (already named correctly), OR
-- front-matter contains `project: <project>` (old name, not yet renamed).
-
-Also glob case-insensitively for the raw target token (e.g. `*MR31*`, `*issue75*`) when the project field is missing from front-matter — infer project from context only if unambiguous.
-
-**Step 2 — Classify each file.** For every discovered file, check independently:
-
-| Check | Pass condition |
-|---|---|
-| **Name** | Matches `<project>-(mr\|issue)<n>-<topic>.md`, lowercase, hyphenated topic |
-| **Front-matter** | Has all required fields: `project`, `target`, `host`, `state`, `started`, `updated` |
-| **Sections** | Has `## Verdict`, `## Rounds summary` table, at least one `## Round N` block |
-
-Collect a summary list before touching anything:
-```
-NEEDS RENAME:   mr31-review-notes.md → dronava-mr31-rlc-design.md
-NEEDS CONTENT:  dronava-mr25-pdcp.md  (missing Verdict section)
-OK (skip):      dronava-mr21-rlc-design.md
-```
-**Show this list to the user and ask for confirmation before writing anything.**
-
-**Step 3 — Apply fixes (after confirmation).**
-
-For each file needing a fix, in this order:
-1. **Rename first** (if needed): `git mv <old> <new>`. Update `target` in front-matter if it contains the old filename stem.
-2. **Refactor content** (if needed): preserve all existing data (findings, round notes, dates, decisions). Only add missing structural elements — do NOT delete or reword existing content. Specifically:
-   - Add missing front-matter fields with inferred values (e.g. `state: merged` if Verdict says APPROVE).
-   - Add empty `## Verdict` placeholder if missing.
-   - Add `## Rounds summary` table seeded from existing `## Round N` blocks if missing.
-   - Reorder sections to match template order (Verdict → Rounds summary → Round blocks newest-first) if out of order.
-
-**Step 4 — Report.**
-After all writes:
-```
-Renamed:   2 files
-Refactored: 1 file
-Skipped:   3 files (already correct)
-```
-List each changed file with one-line description of what changed.
+Batch-fix all notes files for `<project>` in `code/track/` with a wrong name or
+non-conforming content (discover → classify → confirm → rename+refactor → report).
+Full steps: `~/.claude/skills/review-tracker/reference/refactor.md`.
 
 ## A no-op is a valid outcome
 
@@ -159,10 +120,6 @@ Legend: 🟢 done/approved · 🟡 in-review/notes/deferred · 🔴 blockers ope
 
 | Mistake | Do instead |
 |---|---|
-| Assume notes path = template path | Glob `code/track/*<target>*` first; reuse existing file |
 | Trust the in-session "it's closed" claim | Re-query remote on close; reconcile linked issues; STOP on conflict |
-| Rewrite a tracker/notes that's already correct | One-line "already reflects this", no edit |
 | Auto-edit the features file | Diff + ask; skip if no capability change or `features: null` |
-| Seed a config `features` path that doesn't exist | Use `null` until the file exists |
 | Gate file-writes on MCP | Only remote steps gate on MCP; file writes from conversation do not |
-| Leave old-named file in place | `git mv` it to `<project>-mr<n>-<topic>.md` convention before proceeding |

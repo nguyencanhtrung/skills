@@ -1,9 +1,9 @@
 ---
 name: review-3gpp
-description: Use for a deep codebase review of a GitLab MR/Issue that must be both program-correct and 100% 3GPP-compliant. Reads the MR/Issue diff (round-aware delta), fans out one subagent per protocol spec-area, walks the mandatory T1>T2>T3 verification chain with corroboration, loops until coverage is dry, and writes B/D/U/M/L findings into the existing code/track review-notes file. Triggers: the command /rv-3gpp and phrases like "deep 3gpp review <project> <#n|!n>", "deep review dronava !25". Runs BETWEEN /rv-start and /rv-round-end; writes ONLY the review-notes file, never a tracker.
+description: 'Deep program-correctness + 100% 3GPP-compliance review of a GitLab MR/Issue, writing findings into the existing code/track review-notes file. Triggers: the command /rv-3gpp and phrases like "deep 3gpp review <project> <#n|!n>", "deep review dronava !25". Runs BETWEEN /rv-start and /rv-round-end; writes ONLY the review-notes file, never a tracker.'
 ---
 
-# rv-3gpp
+# review-3gpp
 
 Deep review step for an MR/Issue: correctness **and** 100% 3GPP compliance. It
 reads the diff, maps every changed line to its spec authority (spec-model
@@ -30,22 +30,21 @@ edits `gitlab/sum-<project>.md` (tracker) or `code/<project>-features.md`
 If the review-notes framework does not exist yet, **STOP** and tell the user to
 run `/rv-start` first. Do not recreate it.
 
-## Config + number convention
+## Config + conventions
 
-Resolve `<project>` through `~/.claude/skills/review-tracker/review-config.json`
-(read-only; do not fork or duplicate it):
-`{ "<project>": { "host", "project_id", "tracker", "features" } }`.
-`#n` = issue, `!n` = MR. The `#`/`!` decides which capture and which notes file.
+Config schema, the `#n`/`!n` number convention, and the rule for locating the
+review-notes file (glob `code/track/*<target>*`; the target token decides the
+file, so an MR fixing `#72` never reuses `issue72-*.md`) all follow
+**review-tracker** — see `~/.claude/skills/review-tracker/SKILL.md`. This skill is
+read-only on config: do not fork or duplicate it.
 
-If the project entry is missing -> STOP, ask the user to add it via
-`/rv-start` / review-tracker bootstrap; do not guess `project_id`.
+If the project entry is missing -> STOP, ask the user to add it via `/rv-start`;
+do not guess `project_id`.
 
 ## Step 0 - Locate review-notes + determine round N
 
-1. **Glob** `code/track/*<target>*` (case-insensitive, e.g. `*mr25*` or
-   `*issue109*`). The target token decides the file: `!n` -> an MR notes file,
-   `#n` -> an issue notes file. An MR that fixes `#72` does NOT reuse
-   `issue72-*.md`.
+1. **Locate** the review-notes file per the glob rule above (review-tracker's
+   convention): `code/track/*<target>*`, case-insensitive.
 2. **No file found -> STOP.** Tell the user: "No review-notes file for
    `<target>`. Run `/rv-start <project> <#n|!n>` first." Write nothing.
 3. **Round N** = (highest `R<k>` in the Rounds-summary table) + 1. If the only
@@ -195,9 +194,6 @@ Report, in **plain ASCII, concise** (per `feedback-plain-ascii-no-ai-tells`):
 
 | Mistake | Do instead |
 |---|---|
-| Recreate the review-notes framework | If none exists, STOP and tell the user to run `/rv-start` |
-| Edit the tracker or features file | Write ONLY the review-notes file; `/rv-round-end` / `/rv-close` own the rest |
-| Set the top-level `## Verdict` | Leave it; that is `/rv-close` |
 | Re-review the whole MR on round n>1 | Refresh capture, diff only the delta since prior `Head:` SHA |
 | Assert a numeric value from one PDF read | Corroborate with a 2nd source; else tag `T1?` provisional |
 | Read reflowed `pdftotext` for tables/ASN.1 | Use `pdftotext -layout` or a page image |

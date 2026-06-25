@@ -4,6 +4,8 @@
 !.gitignore
 !README.md
 !skills/
+!/docs/
+!CLAUDE.md
 
 # Inside skills/, publish files but never the real (local) config.
 skills/*/review-config.json

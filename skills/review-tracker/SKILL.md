@@ -31,7 +31,9 @@ Notes filenames are inconsistent across history: `MR31-review-notes.md`, `mr25-r
 
 **The target token decides the file, not relatedness.** `!n` -> an MR notes file, `#n` -> an issue notes file. An MR that fixes issue `#72` does NOT reuse `issue72-*.md` — that is the issue's record; the MR gets its own. Linked-item notes stay separate.
 
-**New-file name:** `code/track/MR<n>-review-notes.md` (MR) or `code/track/issue<n>-review-notes.md` (issue). Use `MR` uppercase / `issue` lowercase for new files even though older files vary.
+**Naming convention:** `code/track/<project>-mr<n>-<topic>.md` (MR) or `code/track/<project>-issue<n>-<topic>.md` (issue). Example: `dronava-mr21-rlc-design.md`, `dronava-issue21-pdcp-design.md`. Use `<project>` lowercase, topic short and hyphenated.
+
+**If the found file's name does NOT match this convention** (e.g. `MR31-review-notes.md`, `mr25-review-notes.md`): rename it with `git mv` to the correct name before proceeding. Update any internal front-matter that references the old path.
 
 ## Commands
 
@@ -41,14 +43,14 @@ Remote-first (this step needs MCP):
 
 1. **MCP preflight.** Confirm the `host` MCP is reachable (GitLab: `mcp__gitlab__whoami`). Unreachable -> **STOP**, tell the user how to install/authenticate it. Write nothing.
 2. **Refresh capture** -> `gitlab/<project>/mr-<n>.md` or `issue-<n>.md` per the GitLab Query Capture Protocol (CLAUDE.md). If remote already shows `merged`/`closed` (contradicting "about to review") -> surface it before proceeding.
-3. **Find-or-create review-notes** (see globbing rule above). On create, fill the `## Round 1` Scope from the capture (factual), leave Findings/T1/Outcome as placeholders — results land at `/rv-round-end`.
+3. **Find-or-create review-notes** (see globbing rule above). On create, fill the `## Round 1` Scope from the capture (factual), leave Findings/T1/Outcome as placeholders, and seed the R1 row in the Rounds-summary table (🟡 in-review) — results land at `/rv-round-end`.
 4. **Tracker:** mark the row in-review. The reviewer is the **review owner** (current git user), not the MR author/assignee. If the tracker has no in-review state value (only `opened/merged/closed`), encode it in the row's Notes cell (e.g. `review started <date> (<owner>), R1 in-review`); leave round results blank there.
 
 ### `/rv-round-end <project> <#n|!n>`
 
 From the conversation. Fixed write order:
 
-1. **Review-notes first** — append one `## Round N` block (scope, findings, T1 cites, outcome).
+1. **Review-notes first** — add a `R<N>` row to the **top** of the Rounds-summary table, then insert a new `## Round N` block (scope, findings, T1 cites, outcome) **above** the previous round (newest on top). Use 🟢/🟡/🔴 + text on the row status and each finding.
 2. **Then tracker** — finalize the row from this round. Tracker layouts vary; update whatever columns it has (status/state cell + Notes), and reflect round outcome in Notes when there is no dedicated status column.
 
 ### `/rv-close <project> <#n|!n>`
@@ -56,6 +58,52 @@ From the conversation. Fixed write order:
 1. **MCP preflight + refresh capture.** Verify the item is actually `merged`/`closed` remotely. **Reconcile linked items:** for an MR, also re-query each issue it closes. If a capture is stale (says `opened` but remote says closed) -> fix the capture. If remote disagrees with the in-session claim (item NOT actually closed/merged upstream) -> **STOP and surface the conflict**; the skill records status, the human closes/merges upstream (it does not merge/close for them).
 2. **Review-notes** set final Verdict; **tracker** set state `closed`/`merged`. Adapt to the file's existing structure (e.g. an existing `## STATUS:`/`## Verdict` block) — normalize it, do not impose the template over rich existing content.
 3. **Features** (skip if `null`): only if a **capability-level** status actually changes (e.g. a layer reaching "Supported"), **show a diff and ask** before writing the partner-facing file. Never auto-write it.
+
+### `/rv-refactor <project>`
+
+Batch-fix all notes files for `<project>` in `code/track/` that have a wrong name or non-conforming content. Files that are already correct are silently skipped.
+
+**Step 1 — Discover files.**
+Glob `code/track/` for files that belong to this project:
+- name starts with `<project>-` (already named correctly), OR
+- front-matter contains `project: <project>` (old name, not yet renamed).
+
+Also glob case-insensitively for the raw target token (e.g. `*MR31*`, `*issue75*`) when the project field is missing from front-matter — infer project from context only if unambiguous.
+
+**Step 2 — Classify each file.** For every discovered file, check independently:
+
+| Check | Pass condition |
+|---|---|
+| **Name** | Matches `<project>-(mr\|issue)<n>-<topic>.md`, lowercase, hyphenated topic |
+| **Front-matter** | Has all required fields: `project`, `target`, `host`, `state`, `started`, `updated` |
+| **Sections** | Has `## Verdict`, `## Rounds summary` table, at least one `## Round N` block |
+
+Collect a summary list before touching anything:
+```
+NEEDS RENAME:   mr31-review-notes.md → dronava-mr31-rlc-design.md
+NEEDS CONTENT:  dronava-mr25-pdcp.md  (missing Verdict section)
+OK (skip):      dronava-mr21-rlc-design.md
+```
+**Show this list to the user and ask for confirmation before writing anything.**
+
+**Step 3 — Apply fixes (after confirmation).**
+
+For each file needing a fix, in this order:
+1. **Rename first** (if needed): `git mv <old> <new>`. Update `target` in front-matter if it contains the old filename stem.
+2. **Refactor content** (if needed): preserve all existing data (findings, round notes, dates, decisions). Only add missing structural elements — do NOT delete or reword existing content. Specifically:
+   - Add missing front-matter fields with inferred values (e.g. `state: merged` if Verdict says APPROVE).
+   - Add empty `## Verdict` placeholder if missing.
+   - Add `## Rounds summary` table seeded from existing `## Round N` blocks if missing.
+   - Reorder sections to match template order (Verdict → Rounds summary → Round blocks newest-first) if out of order.
+
+**Step 4 — Report.**
+After all writes:
+```
+Renamed:   2 files
+Refactored: 1 file
+Skipped:   3 files (already correct)
+```
+List each changed file with one-line description of what changed.
 
 ## A no-op is a valid outcome
 
@@ -87,11 +135,22 @@ updated: <YYYY-MM-DD>
 # <project> <target> — review notes
 
 ## Verdict
-<set on /rv-close: APPROVE / APPROVE-WITH-NOTES / CHANGES-REQUESTED + 1-2 lines>
+🟡 <set on /rv-close: 🟢 APPROVE / 🟡 APPROVE-WITH-NOTES / 🔴 CHANGES-REQUESTED + 1-2 lines>
+
+## Rounds summary
+<!-- newest round on top -->
+| Round | Date | Status | Summary |
+|---|---|---|---|
+| R1 | YYYY-MM-DD | 🟡 in-review | <scope in a few words; open/fixed count> |
+
+Legend: 🟢 done/approved · 🟡 in-review/notes/deferred · 🔴 blockers open
 
 ## Round 1 (YYYY-MM-DD)
 - **Scope:** <what was reviewed>
-- **Findings:** B1 <blocker> ; D1 <deviation> ; ...   (B = blocker, D = deviation; tags stable across rounds)
+- **Findings:**   (B = blocker, D = deviation; tags stable across rounds)
+  - 🔴 B1 <blocker> — open
+  - 🟡 D1 <deviation> — deferred
+  - 🟢 D2 <deviation> — fixed
 - **T1 cites:** [TS 38.211 sec 8.3.1.5-6], ...
 - **Outcome:** <fixed / open / deferred per finding; next step>
 ```
@@ -106,3 +165,4 @@ updated: <YYYY-MM-DD>
 | Auto-edit the features file | Diff + ask; skip if no capability change or `features: null` |
 | Seed a config `features` path that doesn't exist | Use `null` until the file exists |
 | Gate file-writes on MCP | Only remote steps gate on MCP; file writes from conversation do not |
+| Leave old-named file in place | `git mv` it to `<project>-mr<n>-<topic>.md` convention before proceeding |

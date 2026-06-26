@@ -41,9 +41,13 @@ Notes filenames are inconsistent across history: `MR31-review-notes.md`, `mr25-r
 
 Remote-first (this step needs MCP):
 
+0. **Scaffold preflight (ask before creating anything).** Check, in order:
+   - `review-config.json` has an entry for `<project>` — if missing, **ask** for `{host, project_id, tracker, features}` and append it (per Bootstrap); never guess.
+   - `gitlab/` (capture dir) and `code/track/` (review-notes dir) exist at repo root — if either is missing, **ask the user for permission to create it** before `mkdir`. Do not auto-create.
+   If the user declines any of these -> **STOP**; without the config entry + both folders `/rv-start` cannot write its outputs.
 1. **MCP preflight.** Confirm the `host` MCP is reachable (GitLab: `mcp__gitlab__whoami`). Unreachable -> **STOP**, tell the user how to install/authenticate it. Write nothing.
 2. **Refresh capture** -> `gitlab/<project>/mr-<n>.md` or `issue-<n>.md` per the GitLab Query Capture Protocol (CLAUDE.md). If remote already shows `merged`/`closed` (contradicting "about to review") -> surface it before proceeding.
-3. **Find-or-create review-notes** (see globbing rule above). On create, fill the `## Round 1` Scope from the capture (factual), leave Findings/T1/Outcome as placeholders, and seed the R1 row in the Rounds-summary table (🟡 in-review) — results land at `/rv-round-end`.
+3. **Find-or-create review-notes** (see globbing rule above). On create, seed the `## FINAL STATUS` header (🟡 in-review), add the R1 row to the `### Round timeline` table, and stub the `## R1` block in `# ARCHIVE` with Scope from the capture (factual); leave findings/per-finding-status as placeholders — results land at `/rv-round-end`.
 4. **Tracker:** mark the row in-review. The reviewer is the **review owner** (current git user), not the MR author/assignee. If the tracker has no in-review state value (only `opened/merged/closed`), encode it in the row's Notes cell (e.g. `review started <date> (<owner>), R1 in-review`); leave round results blank there.
 5. **Auto deep-review (project `dronava` only).** After steps 1-4 finish and the review-notes framework exists, immediately invoke the `review-3gpp` skill (its `/rv-3gpp` flow) for the same `<project> <#n|!n>`, to fill the Round-N findings. **Only for `<project> == dronava`** — for any other project, stop after step 4; do not run `/rv-3gpp`.
 
@@ -51,13 +55,13 @@ Remote-first (this step needs MCP):
 
 From the conversation. Fixed write order:
 
-1. **Review-notes first** — add a `R<N>` row to the **top** of the Rounds-summary table, then insert a new `## Round N` block (scope, findings, T1 cites, outcome) **above** the previous round (newest on top). Use 🟢/🟡/🔴 + text on the row status and each finding.
+1. **Review-notes first** — add a `R<N>` row to the **top** of the `### Round timeline` table, update `### Per-finding status` (stable IDs), then append a new `## RN` block (scope, findings, T1 cites, outcome) in `# ARCHIVE` **above** the previous round (newest on top). Use 🟢/🟡/🔴 + text on the row status and each finding.
 2. **Then tracker** — finalize the row from this round. Tracker layouts vary; update whatever columns it has (status/state cell + Notes), and reflect round outcome in Notes when there is no dedicated status column.
 
 ### `/rv-close <project> <#n|!n>`
 
 1. **MCP preflight + refresh capture.** Verify the item is actually `merged`/`closed` remotely. **Reconcile linked items:** for an MR, also re-query each issue it closes. If a capture is stale (says `opened` but remote says closed) -> fix the capture. If remote disagrees with the in-session claim (item NOT actually closed/merged upstream) -> **STOP and surface the conflict**; the skill records status, the human closes/merges upstream (it does not merge/close for them).
-2. **Review-notes** set final Verdict; **tracker** set state `closed`/`merged`. Adapt to the file's existing structure (e.g. an existing `## STATUS:`/`## Verdict` block) — normalize it, do not impose the template over rich existing content.
+2. **Review-notes** set the `## FINAL STATUS` verdict + front-matter `state`; **tracker** set state `closed`/`merged`. Adapt to the file's existing structure (e.g. an existing `## TRẠNG THÁI CUỐI`/`## FINAL STATUS` block) — normalize it, do not impose the template over rich existing content.
 3. **Features** (skip if `null`): only if a **capability-level** status actually changes (e.g. a layer reaching "Supported"), **show a diff and ask** before writing the partner-facing file. Never auto-write it.
 
 ### `/rv-refactor <project>`
@@ -93,28 +97,57 @@ started: <YYYY-MM-DD>
 updated: <YYYY-MM-DD>
 ---
 
-# <project> <target> — review notes
+# <project> <target> Review — <branch> → <target>
 
-## Verdict
-🟡 <set on /rv-close: 🟢 APPROVE / 🟡 APPROVE-WITH-NOTES / 🔴 CHANGES-REQUESTED + 1-2 lines>
+## 🟢|🟡|🔴 FINAL STATUS: <verdict> (<date>, tip `<sha>`)
 
-## Rounds summary
-<!-- newest round on top -->
-| Round | Date | Status | Summary |
+> The ONLY verdict in effect. Everything below is round history — superseded
+> verdicts keep their (superseded) label; the body is preserved as archive.
+
+- **<target>**: !NN | **Author**: ... | **Base**: `<sha>` | **Head**: `<sha>` | **Review**: <from → to>, N rounds
+
+### Round timeline
+<!-- newest on top -->
+| Round | Head | Verdict then | Notes |
 |---|---|---|---|
-| R1 | YYYY-MM-DD | 🟡 in-review | <scope in a few words; open/fixed count> |
+| Final gate | `sha` | 🟢 MERGE CLEARED | gate result (conflict-check / tests) |
+| R.. (date) | `sha` | 🟡 ... *(superseded)* | findings + decisions |
+| R1 (date) | `sha` | ... | ... |
 
-Legend: 🟢 done/approved · 🟡 in-review/notes/deferred · 🔴 blockers open
+### Per-finding status
+<!-- severity-sorted; finding IDs (B1/C1/D2…) stay STABLE across rounds + dev commits -->
+| Finding | Status | Closed at |
+|---|---|---|
+| B1 <blocker> | ✅ fixed / ❌ open / ⚠️ partial | round/commit |
 
-## Round 1 (YYYY-MM-DD)
-- **Scope:** <what was reviewed>
-- **Findings:**   (B = blocker, D = deviation; tags stable across rounds)
-  - 🔴 B1 <blocker> — open
-  - 🟡 D1 <deviation> — deferred
-  - 🟢 D2 <deviation> — fixed
-- **T1 cites:** [TS 38.211 sec 8.3.1.5-6], ...
-- **Outcome:** <fixed / open / deferred per finding; next step>
+### Outstanding nits (non-blocking)
+**Cosmetic:** ...
+**Declared limits, accepted:** ...
+**Post-merge, out of MR scope:** ...
+**Deferred by decision:** ... (who decided)
+
+### T1 cites (3GPP projects only)
+[TS 38.211 sec 8.3.1.5-6], ...
+
+### Review lessons (optional)
+
+---
+
+# ARCHIVE — chronological record (verdicts here are superseded)
+
+## R1 (date) — verdict then: 🟡 ... *(superseded — see FINAL STATUS at top)*
+<round 1 detail verbatim>
 ```
+
+Operating rules:
+1. New round = update the top tables + append detail to ARCHIVE. Never stack
+   blockquote verdicts at the top.
+2. Never delete old round content — corrections go inline as `**CORRECTED <date>**: ...`
+   right under the original finding (keep the audit trail).
+3. Stable finding IDs (B1/C1/M2/D…) reused across rounds, status table, and dev commits.
+4. Verdict vocabulary: `APPROVE` / `APPROVE-WITH-NITS` / `APPROVE-WITH-CONDITIONS` /
+   `REQUEST-CHANGES` / `MERGE CLEARED` (only after the final gate: conflict-check + re-run tests at the exact tip to be merged).
+5. `state` front-matter tracks the verdict: `in-review` while reviewing, `merged`/`closed` on close; bump `updated` each round.
 
 ## Common mistakes
 

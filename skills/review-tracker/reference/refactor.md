@@ -18,7 +18,7 @@ only if unambiguous.
 |---|---|
 | **Name** | Matches `<project>-(mr\|issue)<n>-<topic>.md`, lowercase, hyphenated topic |
 | **Front-matter** | Has all required fields: `project`, `target`, `host`, `state`, `started`, `updated` |
-| **Sections** | Has `## Verdict`, `## Rounds summary` table, at least one `## Round N` block |
+| **Sections** | Has `## FINAL STATUS` header, `### Round timeline` table, `### Per-finding status` table, and an `# ARCHIVE` block |
 
 Collect a summary list before touching anything:
 ```
@@ -34,9 +34,9 @@ For each file needing a fix, in this order:
 1. **Rename first** (if needed): `git mv <old> <new>`. Update `target` in front-matter if it contains the old filename stem.
 2. **Refactor content** (if needed): preserve all existing data (findings, round notes, dates, decisions). Only add missing structural elements — do NOT delete or reword existing content. Specifically:
    - Add missing front-matter fields with inferred values (e.g. `state: merged` if Verdict says APPROVE).
-   - Add empty `## Verdict` placeholder if missing.
-   - Add `## Rounds summary` table seeded from existing `## Round N` blocks if missing.
-   - Reorder sections to match template order (Verdict → Rounds summary → Round blocks newest-first) if out of order.
+   - Add `## FINAL STATUS` header (single source of truth) if missing.
+   - Add `### Round timeline` + `### Per-finding status` tables seeded from existing round blocks if missing.
+   - Reorder to template order (FINAL STATUS → timeline → per-finding → nits → `# ARCHIVE` newest-first) if out of order.
 
 **Step 4 — Report.**
 After all writes:

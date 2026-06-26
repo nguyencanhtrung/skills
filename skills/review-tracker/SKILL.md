@@ -49,7 +49,10 @@ Remote-first (this step needs MCP):
 2. **Refresh capture** -> `gitlab/<project>/mr-<n>.md` or `issue-<n>.md` per the GitLab Query Capture Protocol (CLAUDE.md). If remote already shows `merged`/`closed` (contradicting "about to review") -> surface it before proceeding.
 3. **Find-or-create review-notes** (see globbing rule above). On create, seed the `## FINAL STATUS` header (🟡 in-review), add the R1 row to the `### Round timeline` table, and stub the `## R1` block in `# ARCHIVE` with Scope from the capture (factual); leave findings/per-finding-status as placeholders — results land at `/rv-round-end`.
 4. **Tracker:** mark the row in-review. The reviewer is the **review owner** (current git user), not the MR author/assignee. If the tracker has no in-review state value (only `opened/merged/closed`), encode it in the row's Notes cell (e.g. `review started <date> (<owner>), R1 in-review`); leave round results blank there.
-5. **Auto deep-review (project `dronava` only).** After steps 1-4 finish and the review-notes framework exists, immediately invoke the `review-3gpp` skill (its `/rv-3gpp` flow) for the same `<project> <#n|!n>`, to fill the Round-N findings. **Only for `<project> == dronava`** — for any other project, stop after step 4; do not run `/rv-3gpp`.
+5. **Auto deep-review.** After steps 1-4 finish and the review-notes framework exists, immediately invoke the matching deep-review skill for the same `<project> <#n|!n>` to fill the Round-N findings:
+   - `<project> == dronava` -> `review-3gpp` (its `/rv-3gpp` flow) — raw 3GPP specs + wiki are the binding north star.
+   - **any other project** -> `review-code` (its `/rv-code` flow) — programming correctness + feature↔wiki divergence (wiki = reference, not gospel).
+   If the matching deep-review skill is unavailable, stop after step 4 and tell the user which to run by hand.
 
 ### `/rv-round-end <project> <#n|!n>`
 

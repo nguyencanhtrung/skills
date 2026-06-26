@@ -42,8 +42,9 @@ workflow after a human approves the proposal.
 ```
 
 If the review-notes framework does not exist yet, **STOP** and tell the user to run
-`/rv-start` first. Do not recreate it. Invoke manually — this skill is NOT
-auto-run by `/rv-start` (unlike dronava -> review-3gpp).
+`/rv-start` first. Do not recreate it. `/rv-start` **auto-runs this skill** for every
+project except `dronava` (which routes to `review-3gpp`); it can also be invoked by
+hand at any time.
 
 ## Config + conventions
 
